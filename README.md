@@ -5,6 +5,57 @@ session engine runs on your Windows PC; the UI opens from your phone, Chromebook
 or any browser. Sessions keep running when a device disconnects — reattach from
 anywhere and the terminal replays where things stand.
 
+## Features
+
+**Persistent, roamable sessions**
+- Every session is a persistent Windows ConPTY running `claude.exe`, owned by the
+  server — not by any browser tab. Close the tab, lose Wi-Fi, or switch devices
+  and it keeps running.
+- Reattaching from any device replays the recent terminal buffer, and WebSockets
+  auto-reconnect as you roam between networks.
+- Resume historical sessions — even from before a server restart — via
+  `claude --resume`.
+
+**Two ways to view a session**
+- **Chat view** — a clean user/assistant conversation parsed live from Claude
+  Code's own transcript, with timestamps and lightweight markdown.
+- **Console view** — the full raw xterm.js terminal with scrollback.
+- A live status pill shows whether Claude is *working*, *waiting on you*, or
+  *idle* — derived from the PTY, which the transcript alone can't reveal.
+- **Inline approvals**: permission/trust prompts are parsed and offered as
+  tappable buttons right in the chat — no need to drop to the console.
+
+**Session management**
+- Live sessions and history in one sidebar; recent transcripts show project, git
+  branch, model, relative time, and a context-window usage gauge.
+- Tap any past conversation to preview it read-only, then Resume to take it live.
+- Rename (persists across restarts), hide, kill/remove, and filter by project.
+
+**Launching work**
+- New Claude session into any project or an arbitrary folder, with a per-session
+  model override on top of the server's model lock.
+- New PowerShell (console-only) shell sessions.
+- Auto (bypass) permission mode by default, configurable.
+
+**Search, files & input**
+- Full-text search across every transcript, with highlighted snippets.
+- Home-sandboxed file explorer + editor, plus an artifact viewer (`.html` renders
+  in a sandboxed iframe, `.md` as rich text, each with a Code/Preview toggle).
+  File paths in chat are clickable.
+- Image upload from the composer, voice dictation (Web Speech API), a growing
+  multi-line composer, and a mobile key bar (Esc, Tab, ⇧Tab, Ctrl-C, arrows).
+
+**Access & operations**
+- Two auth modes — shared token for local/LAN use, or Clerk sign-in with an email
+  allowlist for public roaming (see [Authentication](#authentication)).
+- Plan usage meters (5-hour + weekly), server health awareness (restart buttons
+  go red when unreachable, green banner on recovery), and one-click server
+  restart you can watch run.
+
+**Interface**
+- Light/dark theme (terminal palette follows), responsive layout with an optional
+  desktop two-pane split view, and an installable PWA.
+
 ## Architecture
 
 - **The PC server is the "tmux".** Each session is a persistent Windows ConPTY
@@ -33,6 +84,25 @@ Auto-start on login:
 ```powershell
 schtasks /create /tn "Claude Dashboard" /sc onlogon /rl limited /tr "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File 'C:\path\to\Claude Dashboard\start-dashboard.ps1'"
 ```
+
+## Authentication
+
+**Do I need Clerk? No.** The dashboard has two independent auth modes and picks
+based on whether you've configured Clerk:
+
+- **Token mode (default, zero setup).** With no Clerk keys, the server generates a
+  random token on first run and gates everything behind it — you open the
+  dashboard with the `?token=…` link printed in the console (it's then stored in a
+  cookie). No account, no third-party service. This is all you need to run it on
+  your own PC, LAN, or a private Tailscale network.
+- **Clerk mode (opt-in, for public hosting).** Only when both `clerkSecretKey` and
+  `clerkPublishableKey` are set. This adds real sign-in with an email allowlist —
+  the safe way to expose the UI on the public internet (e.g. a Netlify-hosted
+  frontend), since a token in a URL isn't. Clerk has a free tier; see
+  [Clerk setup](#clerk-setup).
+
+In short: **local or private network → nothing to configure. Public internet →
+turn on Clerk.**
 
 ## Environment variables
 
