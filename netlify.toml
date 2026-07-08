@@ -1,0 +1,23 @@
+# Netlify hosts ONLY the static frontend + Clerk sign-in. The session engine
+# (server.js) must run on the Windows PC — set BACKEND_URL to its HTTPS
+# address (e.g. a `tailscale serve` or cloudflared URL).
+#
+# Required environment variables (Site settings -> Environment variables):
+#   CLERK_PUBLISHABLE_KEY   pk_test_... / pk_live_...
+#   BACKEND_URL             https://<your-pc-hostname>.<tailnet>.ts.net
+
+[build]
+  publish = "public"
+  command = "node scripts/build-static.js"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+
+[[headers]]
+  for = "/env.js"
+  [headers.values]
+    Cache-Control = "no-cache"

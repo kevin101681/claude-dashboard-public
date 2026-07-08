@@ -1,0 +1,19 @@
+{
+  "name": "claude-dashboard",
+  "version": "0.1.0",
+  "description": "Self-hosted dashboard for persistent, roamable Claude Code sessions",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build:static": "node scripts/build-static.js",
+    "postinstall": "node scripts/build-static.js"
+  },
+  "dependencies": {
+    "@clerk/backend": "^3.11.0",
+    "@lydell/node-pty": "^1.1.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "express": "^4.21.0",
+    "ws": "^8.18.0"
+  }
+}

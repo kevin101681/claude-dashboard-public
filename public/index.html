@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#fdfcff">
+<title>Claude Dashboard</title>
+<script>
+  /* Set the theme before first paint so there's no light-mode flash. */
+  (function () {
+    try {
+      var t = localStorage.getItem('theme') ||
+        (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.dataset.theme = t;
+    } catch (e) { document.documentElement.dataset.theme = 'light'; }
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/vendor/xterm/css/xterm.css">
+<link rel="stylesheet" href="/style.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+</head>
+<body>
+
+<!-- ======================= Auth view (Clerk mode only) ======================= -->
+<div id="authView" class="hidden">
+  <div class="auth-box">
+    <h1>Claude Dashboard</h1>
+    <div id="clerkSignIn"></div>
+    <p id="authError" class="empty hidden"></p>
+  </div>
+</div>
+
+<!-- ======================= Workspace: sidebar + session panes ======================= -->
+<!-- Desktop: sidebar on the left (collapsible), open sessions fill the rest,
+     optionally split into two panes. Mobile: the sidebar IS the list view and
+     a single pane overlays it full-screen. -->
+<div id="workspace" class="hidden">
+  <aside id="sidebar">
+    <div id="connBanner" class="banner hidden"></div>
+
+    <!-- Desktop: icon-only action rail. (Mobile uses the footer bar instead.) -->
+    <div class="side-actions">
+      <button id="newSessionBtn" class="btn primary icon-btn" title="New Claude session"></button>
+      <button id="shellBtn" class="btn icon-btn" title="New PowerShell session"></button>
+      <button id="filesBtn" class="btn icon-btn" title="Files"></button>
+      <button id="restartBtn" class="btn icon-btn" title="Restart the dashboard server"></button>
+      <button id="themeBtn" class="btn icon-btn" title="Toggle dark mode"></button>
+      <button id="railSignOut" class="btn icon-btn hidden" title="Sign out"></button>
+      <button id="collapseBtn" class="btn icon-btn desktop-only" title="Hide sidebar">‹</button>
+    </div>
+
+    <div class="search-wrap">
+      <div class="search-field">
+        <span class="search-ico"></span>
+        <input id="searchInput" type="search" aria-label="Search all sessions"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+      </div>
+      <button id="searchClear" class="btn icon-btn hidden" title="Clear search">×</button>
+    </div>
+
+    <!-- Plan usage: 5-hour + weekly windows, filled by /api/usage. -->
+    <div id="usageCard" class="card usage-card hidden"></div>
+
+    <!-- Filter the Live/Recent lists down to a single project. Hidden until
+         there is more than one project to choose between. -->
+    <div id="projectFilterWrap" class="filter-wrap hidden">
+      <div class="select-wrap">
+        <select id="projectFilter" aria-label="Filter sessions by project"></select>
+      </div>
+    </div>
+
+    <main>
+      <section id="searchSection" class="hidden">
+        <h2>Search results</h2>
+        <div id="searchList" class="cards"></div>
+        <p id="searchStatus" class="empty hidden"></p>
+      </section>
+
+      <section id="liveSection">
+        <h2>Live sessions</h2>
+        <div id="liveList" class="cards"></div>
+        <p id="liveEmpty" class="empty hidden">No live sessions. Start one, or resume a recent session below.</p>
+      </section>
+
+      <section id="recentSection">
+        <h2>Recent sessions</h2>
+        <div id="recentList" class="cards"></div>
+      </section>
+    </main>
+
+    <!-- Mobile: header controls live in a sticky footer bar. -->
+    <footer id="mobileBar">
+      <div class="bar-row">
+        <button id="fabNew" class="btn primary icon-btn" title="New Claude session"></button>
+        <button id="fabShell" class="btn icon-btn" title="New PowerShell session"></button>
+        <button id="fabFiles" class="btn icon-btn" title="Files"></button>
+        <button id="fabRestart" class="btn icon-btn" title="Restart the dashboard server"></button>
+        <button id="fabTheme" class="btn icon-btn" title="Toggle dark mode"></button>
+        <button id="fabSignOut" class="btn icon-btn hidden" title="Sign out"></button>
+        <button id="fabBack" class="btn icon-btn hidden" title="Back to sessions"></button>
+      </div>
+    </footer>
+  </aside>
+
+  <button id="expandBtn" class="btn icon-btn hidden" title="Show sidebar">›</button>
+
+  <main id="paneArea" class="no-panes">
+    <div id="paneEmpty" class="pane-empty">
+      <div class="pane-empty-inner">
+        <h3>No session open</h3>
+        <p>Pick a session from the sidebar, or start a new one.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Files: tree + viewer live side by side on desktop; on mobile the two
+       stack (list first, an opened file takes over) under the footer bar. -->
+  <div id="filesView" class="hidden">
+    <div class="files-left">
+      <div id="crumbs" class="crumbs"></div>
+      <div id="fileList" class="file-list"></div>
+    </div>
+    <div class="files-right">
+      <div class="file-view-head">
+        <button id="editorBackBtn" class="btn icon-btn" title="Back to files">‹</button>
+        <span id="editorName" class="file-view-name"></span>
+      </div>
+      <div class="file-view-body">
+        <textarea id="editorText" class="hidden" autocapitalize="off" spellcheck="false"></textarea>
+        <iframe id="editorFrame" class="hidden" sandbox="allow-scripts" title="HTML preview"></iframe>
+        <div id="editorMd" class="editor-md hidden"></div>
+        <div id="editorImageWrap" class="hidden"><img id="editorImage" alt=""></div>
+        <div class="file-actions">
+          <button id="editorModeBtn" class="btn hidden">Code</button>
+          <button id="editorSaveBtn" class="btn primary">Save</button>
+        </div>
+      </div>
+      <div id="fileEmpty" class="file-empty">
+        <div class="pane-empty-inner">
+          <h3>No file open</h3>
+          <p>Pick a file from the tree.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- One open session = one pane, cloned from this template. -->
+<template id="paneTpl">
+  <section class="pane">
+    <div class="term-header">
+      <button class="btn icon-btn back-btn" title="Back to sessions">‹</button>
+      <div class="term-info">
+        <div class="term-name-row">
+          <span class="term-name"></span>
+          <span class="term-status badge"></span>
+        </div>
+        <div class="term-cwd term-sub"></div>
+      </div>
+      <button class="btn status-btn hidden" title="Check dashboard server status">Status</button>
+      <button class="btn mode-toggle">Console</button>
+      <button class="btn kill-btn">Kill</button>
+      <button class="btn icon-btn pane-close-btn desktop-only" title="Close this pane">×</button>
+    </div>
+    <div class="chat-log"></div>
+    <div class="term-frame hidden"><div class="term-host"></div></div>
+    <div class="chat-status hidden"></div>
+    <div class="composer">
+      <textarea class="composer-input" rows="1" aria-label="Prompt"
+             autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send"></textarea>
+      <input type="file" accept="image/*" class="file-input hidden">
+      <div class="composer-actions">
+        <button class="btn icon-btn attach-btn" title="Attach an image"></button>
+        <button class="btn icon-btn mic-btn" title="Dictate a prompt"></button>
+        <button class="btn primary send-btn">Send</button>
+        <!-- Console-only key circles, to the right of Send. -->
+        <div class="key-circles hidden">
+          <button data-seq="&#27;[A" data-icon="chevronUp" title="Up"></button>
+          <button data-seq="&#27;[B" data-icon="chevronDown" title="Down"></button>
+          <button data-seq="&#13;" data-icon="enter" title="Enter"></button>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+
+<!-- ======================= New session popover ======================= -->
+<div id="popoverBackdrop" class="popover-backdrop hidden"></div>
+<div id="newPopover" class="popover hidden">
+  <form id="newForm">
+    <h3 id="newDialogTitle">New Claude Session</h3>
+    <label>Project
+      <div class="select-wrap"><select id="projectSelect"></select></div>
+    </label>
+    <label id="customDirLabel" class="hidden">Folder in home directory
+      <div class="select-wrap"><select id="customDirSelect"></select></div>
+    </label>
+    <label id="modelLabel">Model
+      <div class="select-wrap">
+        <select id="modelSelect">
+          <option value="fable">Fable 5</option>
+          <option value="opus">Opus 4.8</option>
+        </select>
+      </div>
+    </label>
+    <label>Session name
+      <input id="sessionName" type="text" autocomplete="off">
+    </label>
+    <div class="dialog-actions">
+      <button type="button" class="btn" id="cancelNewBtn">Cancel</button>
+      <button type="submit" class="btn primary" id="launchBtn">Launch</button>
+    </div>
+  </form>
+</div>
+
+<script src="/env.js"></script>
+<script src="/vendor/xterm/lib/xterm.js"></script>
+<script src="/vendor/addon-fit/lib/addon-fit.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
