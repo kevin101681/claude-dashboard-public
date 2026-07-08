@@ -361,6 +361,10 @@ function renderProjectFilter() {
 }
 
 function renderList() {
+  // Don't rebuild the list while a title is being edited inline — it would rip
+  // the <input> out of the DOM mid-edit and dismiss the mobile keyboard. The
+  // poll keeps state.data fresh; finish() re-renders once the edit is done.
+  if (document.querySelector('.inline-rename')) return;
   const { live, recent } = state.data;
   renderProjectFilter();
   const pf = state.projectFilter;
