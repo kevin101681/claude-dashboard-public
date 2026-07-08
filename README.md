@@ -1,3 +1,11 @@
+<img width="1920" height="1020" alt="Screenshot 2026-07-08 11 27 35 AM" src="https://github.com/user-attachments/assets/53b27933-7828-4716-bd34-339ac0c9296b" />
+<img width="1920" height="1020" alt="Screenshot 2026-07-08 11 28 10 AM" src="https://github.com/user-attachments/assets/ae0d3bb6-439a-423d-9983-d4f6fc5e7ba2" />
+<img width="1920" height="1020" alt="Screenshot 2026-07-08 11 30 06 AM" src="https://github.com/user-attachments/assets/1dfdd266-792a-4fb1-aa63-e39df7eba152" />
+<img width="1280" height="2856" alt="Screenshot_20260708-113131" src="https://github.com/user-attachments/assets/47a05f9b-f271-472f-a097-abe5a6bada9e" />
+<img width="1280" height="2856" alt="Screenshot_20260708-113122" src="https://github.com/user-attachments/assets/5f7073d9-eced-416a-baf7-1e47c693765b" />
+
+
+
 # Claude Dashboard
 
 Self-hosted web dashboard for **persistent, roamable Claude Code sessions**. The
