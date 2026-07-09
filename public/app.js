@@ -1124,15 +1124,16 @@ function activePane() {
   return state.panes[0] || null;
 }
 
-// Mirror the focused pane's own header row into the desktop header. Each pane's
+// Mirror the single open pane's header row into the desktop header. Each pane's
 // `.term-header` stays the source of truth (setStatusBadge, setMode and rename
 // all write to it), so this only ever copies text and visibility across.
+// Split view opts out entirely: two sessions can't share one set of buttons, so
+// each pane keeps its own header and this zone stays empty.
 function syncHeaderSession() {
   const bar = $('#hdrSession');
   const pane = activePane();
-  const show = pane && isDesktop() && !state.filesOpen;
+  const show = pane && isDesktop() && !state.filesOpen && state.panes.length === 1;
   bar.classList.toggle('hidden', !show);
-  state.panes.forEach(p => p.el.classList.toggle('focused', p === pane));
   if (!show) return;
 
   $('#hdrName').textContent = pane.q('.term-name').textContent;

@@ -1147,20 +1147,10 @@ h2 {
   .pane { max-width: none; margin: 0; }
   .pane .back-btn { display: none; }
 
-  /* A single pane's controls live in the header, so its own header row goes
-     away entirely. Split panes keep a slim strip — just enough to tell the two
-     apart — while the header still drives whichever one is focused. */
+  /* One session: the header carries its name and controls, so the pane drops
+     its own header row. Two sessions can't share one set of buttons, so each
+     split pane keeps a full header and the app header stays out of it. */
   #paneArea:not(.split) .pane .term-header { display: none; }
-  #paneArea.split .pane .term-header {
-    padding: 6px 10px;
-    gap: 8px;
-    border-bottom: 1px solid var(--border);
-  }
-  #paneArea.split .pane .term-header .btn,
-  #paneArea.split .pane .term-cwd { display: none; }
-  #paneArea.split .pane .term-name { font-size: 13px; }
-  /* Which pane the header is acting on. */
-  #paneArea.split .pane.focused .term-header .term-name { color: var(--primary); }
 
   /* Files: tree on the left, opened file on the right, sidebar untouched. */
   #filesView {
