@@ -621,6 +621,7 @@ class Pane {
     this.chatMode = !this.isShell;
     this.chatOffset = 0;
     this.chatEmpty = true;
+    this.chatPolling = false;
     this.lastStatus = null;
     this.lastPrompt = null;
     this.ws = null;
@@ -897,10 +898,18 @@ class Pane {
 
   async pollChat() {
     if (this.closed || this.isShell) return;
+    // A poll can outlive the 2s interval on a slow link. Without this guard the
+    // next tick re-requests the same offset and appends the messages twice.
+    if (this.chatPolling) return;
+    this.chatPolling = true;
     let data;
     try {
       data = await api(`/api/sessions/${this.sid}/messages?offset=${this.chatOffset}`);
-    } catch { return; }
+    } catch {
+      return;
+    } finally {
+      this.chatPolling = false;
+    }
     if (this.closed) return;
     this.chatOffset = data.offset;
     if (this.chatEmpty && (data.messages.length || !data.pending)) {
