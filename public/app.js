@@ -82,6 +82,22 @@ function currentTheme() {
 function xtermTheme() {
   return XTERM_THEMES[currentTheme()];
 }
+// Unsent composer text, one entry per live session id.
+const DRAFT_PREFIX = 'draft:';
+
+// Session ids are minted fresh on every server restart, so drafts for sessions
+// that no longer exist would linger forever. Drop them whenever we learn the
+// current set of live ids.
+function pruneDrafts(liveIds) {
+  try {
+    const keep = new Set(liveIds.map(id => DRAFT_PREFIX + id));
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(DRAFT_PREFIX) && !keep.has(key)) localStorage.removeItem(key);
+    }
+  } catch {}
+}
+
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   try { localStorage.setItem('theme', theme); } catch {}
@@ -320,6 +336,7 @@ async function refresh() {
   // it detects the server just came back from a restart (startedAt changed).
   if (!$('#connBanner').classList.contains('up')) $('#connBanner').classList.add('hidden');
   setServerReachable(true, { startedAt: data.startedAt });
+  pruneDrafts((data.live || []).map(s => s.id));
   renderList();
 }
 
@@ -650,7 +667,7 @@ class Pane {
 
     this.q('.send-btn').addEventListener('pointerdown', (e) => { e.preventDefault(); this.sendComposer(); });
     const input = this.q('.composer-input');
-    input.addEventListener('input', () => this.autoGrow());
+    input.addEventListener('input', () => { this.autoGrow(); this.saveDraft(); });
     input.addEventListener('keydown', (e) => {
       // Enter sends; Shift+Enter inserts a newline (composer expands to fit).
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.sendComposer(); }
@@ -788,6 +805,7 @@ class Pane {
 
     this.connect();
     this.setMode(this.chatMode);
+    this.restoreDraft();
     if (!this.isShell) {
       this.q('.chat-log').innerHTML = '<div class="chat-empty">Loading conversation…</div>';
       this.chatTimer = setInterval(() => this.pollChat(), 2000);
@@ -853,6 +871,7 @@ class Pane {
     this.send({ t: 'i', d: text.replace(/\n/g, '\r') });
     setTimeout(() => this.send({ t: 'i', d: '\r' }), 200);
     input.value = '';
+    this.saveDraft(); // sent, so the draft is gone
     this.autoGrow();
   }
 
@@ -871,6 +890,7 @@ class Pane {
         const input = this.q('.composer-input');
         input.value = this.dictBase + (this.dictBase && heard ? ' ' : '') + heard.trimStart();
         this.autoGrow();
+        this.saveDraft();
       };
       this.rec.onend = () => {
         this.recActive = false;
@@ -894,6 +914,28 @@ class Pane {
     const input = this.q('.composer-input');
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 160) + 'px';
+  }
+
+  // Half-written prompts survive switching panes, closing a session and
+  // reloading the page (a phone backgrounding the tab discards the DOM).
+  // Panes are torn down and rebuilt on every switch, so the draft has to live
+  // outside the pane — keyed by session id, cleared once the prompt is sent.
+  saveDraft() {
+    if (this.readonly) return;
+    const text = this.q('.composer-input').value;
+    try {
+      if (text) localStorage.setItem(DRAFT_PREFIX + this.sid, text);
+      else localStorage.removeItem(DRAFT_PREFIX + this.sid);
+    } catch {}
+  }
+
+  restoreDraft() {
+    if (this.readonly) return;
+    let text = '';
+    try { text = localStorage.getItem(DRAFT_PREFIX + this.sid) || ''; } catch {}
+    if (!text) return;
+    this.q('.composer-input').value = text;
+    this.autoGrow();
   }
 
   async pollChat() {
@@ -1036,6 +1078,7 @@ class Pane {
       input.value = (input.value ? input.value + ' ' : '') + path + ' ';
       input.focus();
       this.autoGrow();
+      this.saveDraft();
     } catch (err) {
       alert('Upload failed: ' + err.message);
     } finally {
