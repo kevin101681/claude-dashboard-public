@@ -40,10 +40,45 @@
      optionally split into two panes. Mobile: the sidebar IS the list view and
      a single pane overlays it full-screen. -->
 <div id="workspace" class="hidden">
+  <!-- Desktop (>=1024px) only: one bar across the whole window. App actions on
+       the left, the focused pane's session controls in the middle, account on
+       the right. Narrower screens keep the sidebar rail / mobile footer bar. -->
+  <header id="appHeader">
+    <div class="hdr-actions">
+      <button id="collapseBtn" class="btn icon-btn" title="Hide sidebar">‹</button>
+      <button id="expandBtn" class="btn icon-btn hidden" title="Show sidebar">›</button>
+      <button id="hdrNew" class="btn primary ico-label" title="New Claude session"></button>
+      <button id="hdrShell" class="btn ico-label" title="New PowerShell session"></button>
+      <button id="hdrFiles" class="btn ico-label" title="Files"></button>
+      <button id="hdrRestart" class="btn ico-label" title="Restart the dashboard server"></button>
+    </div>
+
+    <!-- Mirrors whichever pane was last touched; empty when none is open. -->
+    <div id="hdrSession" class="hdr-session hidden">
+      <div class="hdr-session-info">
+        <span id="hdrName" class="hdr-name"></span>
+        <span id="hdrBadge" class="badge"></span>
+        <span id="hdrCwd" class="hdr-cwd"></span>
+      </div>
+      <div class="hdr-session-actions">
+        <button id="hdrStatus" class="btn status-btn hidden" title="Check dashboard server status">Status</button>
+        <button id="hdrMode" class="btn">Console</button>
+        <button id="hdrKill" class="btn">Kill</button>
+        <button id="hdrClose" class="btn icon-btn" title="Close this pane">×</button>
+      </div>
+    </div>
+
+    <div class="hdr-right">
+      <button id="hdrTheme" class="btn icon-btn" title="Toggle dark mode"></button>
+      <button id="hdrSignOut" class="btn ico-label hidden" title="Sign out"></button>
+    </div>
+  </header>
+
   <aside id="sidebar">
     <div id="connBanner" class="banner hidden"></div>
 
-    <!-- Desktop: icon-only action rail. (Mobile uses the footer bar instead.) -->
+    <!-- Tablet (601-1023px): icon-only action rail. Desktop uses #appHeader,
+         phones use the footer bar. -->
     <div class="side-actions">
       <button id="newSessionBtn" class="btn primary icon-btn" title="New Claude session"></button>
       <button id="shellBtn" class="btn icon-btn" title="New PowerShell session"></button>
@@ -51,7 +86,6 @@
       <button id="restartBtn" class="btn icon-btn" title="Restart the dashboard server"></button>
       <button id="themeBtn" class="btn icon-btn" title="Toggle dark mode"></button>
       <button id="railSignOut" class="btn icon-btn hidden" title="Sign out"></button>
-      <button id="collapseBtn" class="btn icon-btn desktop-only" title="Hide sidebar">‹</button>
     </div>
 
     <div class="search-wrap">
@@ -87,8 +121,14 @@
         <p id="liveEmpty" class="empty hidden">No live sessions. Start one, or resume a recent session below.</p>
       </section>
 
-      <section id="recentSection">
-        <h2>Recent sessions</h2>
+      <!-- Collapsed by default: the live sessions are what you usually want. -->
+      <section id="recentSection" class="collapsed">
+        <h2 class="section-head">
+          <button id="recentToggle" class="section-toggle" aria-expanded="false" aria-controls="recentList">
+            <span class="chev" aria-hidden="true">›</span>
+            <span>Recent sessions</span>
+          </button>
+        </h2>
         <div id="recentList" class="cards"></div>
       </section>
     </main>
@@ -106,8 +146,6 @@
       </div>
     </footer>
   </aside>
-
-  <button id="expandBtn" class="btn icon-btn hidden" title="Show sidebar">›</button>
 
   <main id="paneArea" class="no-panes">
     <div id="paneEmpty" class="pane-empty">

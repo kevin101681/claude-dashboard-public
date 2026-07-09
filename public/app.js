@@ -104,9 +104,10 @@ function applyTheme(theme) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = theme === 'dark' ? '#0f1519' : '#fdfcff';
   const icon = theme === 'dark' ? ICONS.sun : ICONS.moon;
-  const tb = $('#themeBtn'), ft = $('#fabTheme');
-  if (tb) tb.innerHTML = icon;
-  if (ft) ft.innerHTML = icon;
+  for (const sel of ['#themeBtn', '#fabTheme', '#hdrTheme']) {
+    const el = $(sel);
+    if (el) el.innerHTML = icon;
+  }
   // Repaint every open terminal.
   for (const p of state.panes) {
     if (p.term) { try { p.term.options.theme = xtermTheme(); } catch {} }
@@ -174,6 +175,7 @@ function showFiles(show) {
     state.panes.forEach(p => p.fit());
   }
   updateFabBar();
+  syncHeaderSession(); // the header's session controls hide behind the files view
 }
 
 async function api(path, opts) {
@@ -287,7 +289,7 @@ async function pingHealth() {
 }
 
 function setServerReachable(ok, info) {
-  const restartBtns = [$('#restartBtn'), $('#fabRestart')].filter(Boolean);
+  const restartBtns = [$('#restartBtn'), $('#fabRestart'), $('#hdrRestart')].filter(Boolean);
   restartBtns.forEach(b => b.classList.toggle('server-down', !ok));
 
   if (ok) {
@@ -698,8 +700,13 @@ class Pane {
       });
     });
 
-    // Whichever pane was touched last is where the next sidebar pick lands.
-    this.el.addEventListener('pointerdown', () => { state.focused = this; }, true);
+    // Whichever pane was touched last is where the next sidebar pick lands,
+    // and which one the desktop header's session controls act on.
+    this.el.addEventListener('pointerdown', () => {
+      if (state.focused === this) return;
+      state.focused = this;
+      syncHeaderSession();
+    }, true);
 
     // File paths in chat bubbles open in the built-in viewer (web links are
     // real anchors and need no help).
@@ -730,6 +737,7 @@ class Pane {
       const killBtn = this.q('.kill-btn');
       killBtn.textContent = 'Resume';
       killBtn.classList.add('primary');
+      syncHeaderSession();
     }
   }
 
@@ -759,8 +767,9 @@ class Pane {
   }
 
   // Ping the dashboard server and flash the button green (up) or red (down).
-  async checkServerStatus() {
-    const btn = this.q('.status-btn');
+  // The button is passed in: on desktop the visible one is the header's mirror,
+  // not this pane's own (which is hidden).
+  async checkServerStatus(btn = this.q('.status-btn')) {
     btn.classList.remove('ok', 'down');
     btn.textContent = 'Checking…';
     try {
@@ -821,6 +830,7 @@ class Pane {
     this.q('.key-circles').classList.toggle('hidden', this.chatMode);
     this.q('.mode-toggle').textContent = this.chatMode ? 'Console' : 'Chat';
     this.setChatStatus();
+    syncHeaderSession();
     if (!this.chatMode) setTimeout(() => this.fit(), 50);
   }
 
@@ -1040,6 +1050,7 @@ class Pane {
     el.textContent = status;
     el.className = 'term-status badge ' + (status === 'exited' ? 'exited' : 'live');
     this.q('.kill-btn').textContent = status === 'exited' ? 'Close' : 'Kill';
+    syncHeaderSession();
   }
 
   async killOrClose() {
@@ -1103,7 +1114,52 @@ function updatePaneArea() {
   area.classList.toggle('no-panes', state.panes.length === 0);
   area.classList.toggle('split', state.panes.length > 1);
   updateFabBar();
+  syncHeaderSession();
 }
+
+// The pane the desktop header acts on: whichever was touched last, falling
+// back to the only one open.
+function activePane() {
+  if (state.focused && state.panes.includes(state.focused)) return state.focused;
+  return state.panes[0] || null;
+}
+
+// Mirror the focused pane's own header row into the desktop header. Each pane's
+// `.term-header` stays the source of truth (setStatusBadge, setMode and rename
+// all write to it), so this only ever copies text and visibility across.
+function syncHeaderSession() {
+  const bar = $('#hdrSession');
+  const pane = activePane();
+  const show = pane && isDesktop() && !state.filesOpen;
+  bar.classList.toggle('hidden', !show);
+  state.panes.forEach(p => p.el.classList.toggle('focused', p === pane));
+  if (!show) return;
+
+  $('#hdrName').textContent = pane.q('.term-name').textContent;
+  $('#hdrCwd').textContent = pane.q('.term-cwd').textContent;
+
+  const badge = pane.q('.term-status');
+  $('#hdrBadge').textContent = badge.textContent;
+  $('#hdrBadge').className = badge.className.replace('term-status', '').trim();
+
+  const mode = pane.q('.mode-toggle');
+  const hdrMode = $('#hdrMode');
+  hdrMode.textContent = mode.textContent;
+  hdrMode.classList.toggle('hidden', mode.classList.contains('hidden'));
+
+  const kill = pane.q('.kill-btn');
+  const hdrKill = $('#hdrKill');
+  hdrKill.textContent = kill.textContent;
+  hdrKill.classList.toggle('primary', kill.classList.contains('primary'));
+
+  $('#hdrStatus').classList.toggle('hidden', pane.q('.status-btn').classList.contains('hidden'));
+}
+
+$('#hdrMode').onclick = () => { const p = activePane(); if (p) { p.setMode(!p.chatMode); syncHeaderSession(); } };
+$('#hdrKill').onclick = () => { const p = activePane(); if (p) p.readonly ? p.resumeTranscript() : p.killOrClose(); };
+$('#hdrClose').onclick = () => { const p = activePane(); if (p) closePane(p); };
+$('#hdrStatus').onclick = () => { const p = activePane(); if (p) p.checkServerStatus($('#hdrStatus')); };
+$('#hdrName').onclick = () => { const p = activePane(); if (p && !p.readonly) p.rename(); };
 
 // Mobile footer: Back only means something inside a session or the files
 // browser, and it swaps in for Sign out so five buttons never squeeze onto
@@ -1551,6 +1607,47 @@ $('#fabRestart').innerHTML = ICONS.refresh;
 $('#restartBtn').onclick = restartServer;
 $('#fabRestart').onclick = restartServer;
 
+// Desktop header: the same actions, with labels. (Icon-only variants above
+// still serve the tablet rail and the phone footer.)
+const labelBtn = (sel, icon, label) => { $(sel).innerHTML = icon + `<span>${label}</span>`; };
+labelBtn('#hdrNew', ICONS.plus, 'New session');
+labelBtn('#hdrShell', ICONS.terminal, 'PowerShell');
+labelBtn('#hdrFiles', ICONS.folder, 'Files');
+labelBtn('#hdrRestart', ICONS.refresh, 'Restart');
+labelBtn('#hdrSignOut', ICONS.logout, 'Sign out');
+$('#hdrNew').onclick = () => openNewDialog('claude', $('#hdrNew'));
+$('#hdrShell').onclick = () => openNewDialog('shell', $('#hdrShell'));
+$('#hdrFiles').onclick = () => openExplorer(state.explorerPath);
+$('#hdrRestart').onclick = restartServer;
+$('#hdrTheme').onclick = toggleTheme;
+$('#hdrSignOut').onclick = signOut;
+
+// Rename from the header. The pane's own title is hidden on desktop, so edit
+// the header copy and write the result back to the pane.
+$('#hdrName').onclick = () => {
+  const pane = activePane();
+  if (!pane || pane.readonly) return;
+  const el = $('#hdrName');
+  inlineRename(el, el.textContent, async (name) => {
+    await api(`/api/sessions/${pane.sid}/rename`, { method: 'POST', body: JSON.stringify({ name }) });
+    pane.q('.term-name').textContent = name;
+    pane.session.name = name;
+    el.textContent = name;
+  });
+};
+
+// Recent sessions: collapsible, collapsed until you say otherwise.
+function setRecentCollapsed(collapsed) {
+  $('#recentSection').classList.toggle('collapsed', collapsed);
+  $('#recentToggle').setAttribute('aria-expanded', String(!collapsed));
+  try { localStorage.setItem('recentCollapsed', collapsed ? '1' : '0'); } catch {}
+}
+$('#recentToggle').onclick = () =>
+  setRecentCollapsed(!$('#recentSection').classList.contains('collapsed'));
+let recentCollapsed = '1';
+try { recentCollapsed = localStorage.getItem('recentCollapsed') ?? '1'; } catch {}
+setRecentCollapsed(recentCollapsed !== '0');
+
 // Search box: debounced live search, Enter for immediate, × or empty to clear.
 $('#searchInput').addEventListener('input', () => {
   clearTimeout(state.searchTimer);
@@ -1626,6 +1723,7 @@ desktopMq.addEventListener('change', enforceLayout);
 window.addEventListener('resize', () => {
   enforceLayout();
   state.panes.forEach(p => p.fit());
+  syncHeaderSession(); // crossing the desktop breakpoint hands controls over
 });
 
 // Poll list state; on mobile pause while a session pane covers the screen.
@@ -1689,6 +1787,7 @@ function loadClerkJs(publishableKey) {
     state.canSignOut = true;
     $('#fabSignOut').classList.remove('hidden');
     $('#railSignOut').classList.remove('hidden');
+    $('#hdrSignOut').classList.remove('hidden');
   }
   showView('workspace');
   startPolling();

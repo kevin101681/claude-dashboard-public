@@ -142,6 +142,36 @@ h2 {
 
 .header-right { display: flex; align-items: center; gap: 10px; }
 
+/* Full-width desktop header. Hidden until the desktop breakpoint claims it. */
+#appHeader { display: none; }
+
+/* Collapsible section heading (Recent sessions). The <h2> keeps its styling;
+   the button inside it carries the click target and the chevron. */
+.section-head { margin-bottom: 0; }
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0 0 10px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+}
+.section-toggle .chev {
+  display: inline-block;
+  font-size: 15px;
+  line-height: 1;
+  transform: rotate(90deg);
+  transition: transform 0.15s;
+}
+#recentSection.collapsed .section-toggle .chev { transform: rotate(0deg); }
+#recentSection.collapsed #recentList { display: none; }
+
 .side-actions { display: flex; gap: 8px; margin-bottom: 16px; }
 .side-actions .btn {
   flex: 1;
@@ -1028,33 +1058,85 @@ h2 {
   #expandBtn { display: none !important; }
 }
 
-/* Desktop: sidebar + pane area side by side. */
+/* Desktop: one header across the top, sidebar + pane area beneath it. */
 @media (min-width: 1024px) {
-  #workspace { display: flex; height: 100vh; }
-  #sidebar { padding-top: 12px; }
+  #workspace {
+    display: grid;
+    grid-template-columns: 380px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "hdr  hdr"
+      "side pane";
+    height: 100vh;
+  }
+  #workspace.side-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+
+  #appHeader {
+    grid-area: hdr;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .hdr-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .hdr-right { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+
+  /* Focused session: fills the space between the app actions and the account
+     controls. The name truncates first; the buttons never shrink. */
+  .hdr-session {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+    padding-left: 16px;
+    border-left: 1px solid var(--border);
+  }
+  .hdr-session.hidden { display: none; }
+  .hdr-session-info {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+  .hdr-name {
+    font-size: 15px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hdr-session-info .badge { align-self: center; flex-shrink: 0; }
+  .hdr-cwd {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .hdr-session-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
   #sidebar {
-    width: 380px;
+    grid-area: side;
+    padding-top: 12px;
+    width: auto;
     max-width: none;
     margin: 0;
-    flex-shrink: 0;
     overflow-y: auto;
     background: var(--bg);
   }
   #workspace.side-collapsed #sidebar { display: none; }
-  #expandBtn {
-    position: fixed;
-    top: 14px;
-    left: 14px;
-    z-index: 40;
-    box-shadow: var(--shadow-1);
-  }
-  /* Clear the floating expand button so content doesn't slip under it. */
-  #workspace.side-collapsed #paneArea,
-  #workspace.side-collapsed #filesView { padding-left: 60px; }
+  #workspace.side-collapsed #collapseBtn { display: none; }
+  /* The rail moved into the header; the sidebar is a pure list on desktop. */
+  #sidebar .side-actions { display: none; }
 
   #paneArea {
+    grid-area: pane;
     position: static;
-    flex: 1;
     min-width: 0;
     padding: 0 4px;
     z-index: auto;
@@ -1065,10 +1147,25 @@ h2 {
   .pane { max-width: none; margin: 0; }
   .pane .back-btn { display: none; }
 
+  /* A single pane's controls live in the header, so its own header row goes
+     away entirely. Split panes keep a slim strip — just enough to tell the two
+     apart — while the header still drives whichever one is focused. */
+  #paneArea:not(.split) .pane .term-header { display: none; }
+  #paneArea.split .pane .term-header {
+    padding: 6px 10px;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  #paneArea.split .pane .term-header .btn,
+  #paneArea.split .pane .term-cwd { display: none; }
+  #paneArea.split .pane .term-name { font-size: 13px; }
+  /* Which pane the header is acting on. */
+  #paneArea.split .pane.focused .term-header .term-name { color: var(--primary); }
+
   /* Files: tree on the left, opened file on the right, sidebar untouched. */
   #filesView {
+    grid-area: pane;
     position: static;
-    flex: 1;
     min-width: 0;
     display: flex;
     z-index: auto;
